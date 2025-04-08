@@ -1,0 +1,114 @@
+version: '3.8'
+
+services:
+  # Redis for pub/sub messaging and caching
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pacman-network
+
+  # Load balancer to distribute traffic across game server instances
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "3000:80"  # Map port 3000 to 80 for the game server API
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - game-server-1
+      - game-server-2
+      - game-server-3
+    networks:
+      - pacman-network
+
+  # Game server instances (multiple for distributed operation)
+  game-server-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ID=node1
+      - PORT=3000
+      - REDIS_URL=redis://redis:6379
+      - LIBSQL_URL=file:/data/pacman-node1.db
+      - WEBCONTAINER_HOST=nginx
+    volumes:
+      - game-data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - pacman-network
+
+  game-server-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ID=node2
+      - PORT=3000
+      - REDIS_URL=redis://redis:6379
+      - LIBSQL_URL=file:/data/pacman-node2.db
+      - WEBCONTAINER_HOST=nginx
+    volumes:
+      - game-data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - pacman-network
+
+  game-server-3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ID=node3
+      - PORT=3000
+      - REDIS_URL=redis://redis:6379
+      - LIBSQL_URL=file:/data/pacman-node3.db
+      - WEBCONTAINER_HOST=nginx
+    volumes:
+      - game-data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - pacman-network
+
+  # Frontend client - using direct development mode
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client.direct
+    ports:
+      - "5173:5173"
+    environment:
+      - WEBCONTAINER_HOST=nginx
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+    depends_on:
+      - nginx
+    networks:
+      - pacman-network
+
+networks:
+  pacman-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  game-data:
+
