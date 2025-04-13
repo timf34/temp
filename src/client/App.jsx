@@ -8,7 +8,7 @@ import Leaderboard from "./components/Leaderboard";
 
 // Get the WebContainer host URL from the current window location
 const host = window.location.hostname;
-const socketUrl = `${window.location.protocol}//${host.replace("--5173", "--3000")}`;
+const socketUrl = `http://${host}:80`;
 
 console.log("Connecting to socket at:", socketUrl);
 
